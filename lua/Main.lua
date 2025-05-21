@@ -30,45 +30,61 @@ end
 print("Initializing Core table...")
 _G.Core = {}
 
--- Wait for the game to fully load
+-- Detect if running in a third-party environment
+local isThirdParty = pcall(function()
+    return game:GetService("ThirdPartyUserService") ~= nil
+end)
+if isThirdParty then
+    warn("Detected third-party environment. Some features may not work as expected.")
+end
+
+-- Wait for the game to fully load with extended timeout
 print("Waiting for game to load...")
-if game and game:IsLoaded then
+local gameLoadTimeout = 30 -- Extended timeout for third-party environments
+local startTime = tick()
+if game and game.IsLoaded then
     if not game:IsLoaded() then
         game.Loaded:Wait()
     end
 else
-    print("Game object not found, waiting for 10 seconds...")
-    task.wait(10) -- Fallback delay if game is not available
+    print("Game object not found, waiting up to " .. gameLoadTimeout .. " seconds...")
+    while not game and (tick() - startTime) < gameLoadTimeout do
+        task.wait(1)
+    end
 end
-print("Game loaded successfully or timeout reached!")
+if not game then
+    warn("Game object not available after timeout. Script may not function correctly.")
+else
+    print("Game loaded successfully or timeout reached!")
+end
 
 -- Wait for game and workspace objects to be available
 print("Waiting for game and workspace objects...")
-local maxWaitTime = 15 -- Maximum wait time in seconds
+local maxWaitTime = 30 -- Extended timeout
 local waitTime = 0
-while not game or not workspace do
+while (not game or not workspace) and waitTime < maxWaitTime do
     print("Game or Workspace not yet available, waiting...")
-    task.wait(0.1)
-    waitTime = waitTime + 0.1
-    if waitTime >= maxWaitTime then
-        warn("Timeout waiting for game and workspace objects")
-        break
-    end
+    task.wait(0.5)
+    waitTime = waitTime + 0.5
+end
+if not game or not workspace then
+    warn("Timeout waiting for game and workspace objects. Script may not function correctly.")
 end
 
--- Services with enhanced error handling
+-- Services with enhanced error handling and fallback
 local success, err = pcall(function()
     if not game then
         error("Game object is nil")
     end
-    Core.Players = game:GetService("Players")
-    if not Core.Players then
-        error("Players service not available")
+    local playersService = game:GetService("Players")
+    if not playersService then
+        error("Players service not available after retries")
     end
+    Core.Players = playersService
     Core.UserInputService = game:GetService("UserInputService")
     Core.TweenService = game:GetService("TweenService")
     Core.RunService = game:GetService("RunService")
-    Core.Camera = workspace.CurrentCamera
+    Core.Camera = workspace and workspace.CurrentCamera or nil
     if not Core.Camera then
         error("Camera not found in workspace")
     end
@@ -87,17 +103,17 @@ print("Services initialized successfully!")
 Core.LocalPlayer = Core.Players.LocalPlayer
 if not Core.LocalPlayer then
     warn("LocalPlayer not found, waiting...")
+    local localPlayerTimeout = 20 -- Extended timeout
     local startTime = tick()
-    repeat
-        task.wait(0.1)
+    while not Core.LocalPlayer and (tick() - startTime) < localPlayerTimeout do
+        task.wait(0.5)
         Core.LocalPlayer = Core.Players.LocalPlayer
-        if tick() - startTime > 10 then
-            warn("Timeout waiting for LocalPlayer")
-            break
-        end
-    until Core.LocalPlayer
+    end
+    if not Core.LocalPlayer then
+        warn("Timeout waiting for LocalPlayer. Script may not function correctly.")
+    end
 end
-Core.Mouse = Core.LocalPlayer:GetMouse()
+Core.Mouse = Core.LocalPlayer and Core.LocalPlayer:GetMouse() or nil
 Core.Toggled = true
 Core.ESPEnabled = false
 Core.FOVCircle = nil
@@ -112,7 +128,7 @@ Core.ZoomEnabled = false
 Core.ZoomKey = Enum.UserInputType.MouseButton3
 Core.DefaultFOV = 70
 Core.ZoomFOV = 20
-Core.OriginalSensitivity = Core.UserInputService.MouseDeltaSensitivity
+Core.OriginalSensitivity = Core.UserInputService and Core.UserInputService.MouseDeltaSensitivity or 0
 Core.CurrentTarget = nil
 Core.AimbotRunning = false
 Core.AimbotAnimation = nil
@@ -269,4 +285,8 @@ else
 end
 
 -- Initialize Zoom
-Core.Camera.FieldOfView = Core.DefaultFOV
+if Core.Camera then
+    Core.Camera.FieldOfView = Core.DefaultFOV
+else
+    warn("Camera not available, cannot set FieldOfView")
+end
