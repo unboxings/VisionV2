@@ -17,17 +17,25 @@ local function CreateESP(player)
             Health = nil,
             Weapon = nil
         }
-        -- Skeleton ESP is disabled in this version due to Drawing library removal
     }
 
     -- Create BillboardGui for text labels
-    local billboardGui = Instance.new("BillboardGui")
-    billboardGui.Name = "ESP_" .. player.Name
-    billboardGui.Size = UDim2.new(0, 200, 0, 100)
-    billboardGui.StudsOffset = Vector3.new(0, 3, 0) -- Position above the player's head
-    billboardGui.AlwaysOnTop = true
-    billboardGui.MaxDistance = 2000
-    billboardGui.Enabled = false
+    local success, billboardGui = pcall(function()
+        local gui = Instance.new("BillboardGui")
+        gui.Name = "ESP_" .. player.Name
+        gui.Size = UDim2.new(0, 200, 0, 100)
+        gui.StudsOffset = Vector3.new(0, 3, 0)
+        gui.AlwaysOnTop = true
+        gui.MaxDistance = 2000
+        gui.Enabled = false
+        return gui
+    end)
+
+    if not success then
+        warn("Failed to create BillboardGui for " .. player.Name .. ": " .. billboardGui)
+        return
+    end
+
     esp.BillboardGui = billboardGui
 
     -- Create labels for Name, Distance, Health, and Weapon
@@ -52,13 +60,22 @@ local function CreateESP(player)
     esp.Labels.Weapon = createLabel("Weapon", 60, 14)
 
     -- Create Highlight for box
-    local highlight = Instance.new("Highlight")
-    highlight.Name = "ESPBox_" .. player.Name
-    highlight.FillColor = Core.Settings.Visuals.EnemyColor
-    highlight.OutlineColor = Core.OUTLINE_COLOR
-    highlight.FillTransparency = 0.5
-    highlight.OutlineTransparency = 0
-    highlight.Enabled = false
+    local success, highlight = pcall(function()
+        local hl = Instance.new("Highlight")
+        hl.Name = "ESPBox_" .. player.Name
+        hl.FillColor = Core.Settings.Visuals.EnemyColor
+        hl.OutlineColor = Core.OUTLINE_COLOR
+        hl.FillTransparency = 0.5
+        hl.OutlineTransparency = 0
+        hl.Enabled = false
+        return hl
+    end)
+
+    if not success then
+        warn("Failed to create Highlight for " .. player.Name .. ": " .. highlight)
+        return
+    end
+
     esp.Highlight = highlight
 
     -- Parent BillboardGui and Highlight to player character when available
@@ -89,9 +106,18 @@ local function UpdateESP()
                 local isTeam = Core.Settings.Visuals.TeamCheck and player.Team == Core.Players.LocalPlayer.Team
                 local color = isTeam and Core.Settings.Visuals.TeamColor or Core.Settings.Visuals.EnemyColor
 
+                -- Ensure PlayerGui exists before parenting
+                local playerGui = Core.Players.LocalPlayer:FindFirstChild("PlayerGui")
+                if not playerGui then
+                    warn("PlayerGui not found for local player. ESP may not display for " .. player.Name)
+                    esp.BillboardGui.Enabled = false
+                    esp.Highlight.Enabled = false
+                    return
+                end
+
                 -- Update BillboardGui visibility
                 esp.BillboardGui.Enabled = true
-                esp.BillboardGui.Parent = Core.Players.LocalPlayer:FindFirstChild("PlayerGui") or game:GetService("StarterGui")
+                esp.BillboardGui.Parent = playerGui
 
                 -- Update Highlight visibility
                 esp.Highlight.Enabled = Core.Settings.Visuals.Box
@@ -131,8 +157,6 @@ local function UpdateESP()
                 else
                     esp.Labels.Weapon.Visible = false
                 end
-
-                -- Skeleton ESP is disabled in this version
             else
                 esp.BillboardGui.Enabled = false
                 esp.Highlight.Enabled = false
@@ -340,6 +364,7 @@ local function UpdateSkyColor()
 end
 
 function Visuals:EnableESP()
+    print("Enabling ESP...")
     Core.Settings.Visuals.ESPEnabled = true
     Core.ESPEnabled = true
     ScanPlayers()
@@ -350,6 +375,7 @@ function Visuals:EnableESP()
 end
 
 function Visuals:DisableESP()
+    print("Disabling ESP...")
     Core.Settings.Visuals.ESPEnabled = false
     Core.ESPEnabled = false
     for _, esp in pairs(ESP.Objects) do
