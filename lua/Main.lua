@@ -23,38 +23,41 @@ local function loadModule(moduleName)
     return nil
 end
 
+-- Create a global Core table to hold shared variables
+_G.Core = {}
+
 -- Services
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-local Camera = workspace.CurrentCamera
-local Debris = game:GetService("Debris")
-local Lighting = game:GetService("Lighting")
+Core.Players = game:GetService("Players")
+Core.UserInputService = game:GetService("UserInputService")
+Core.TweenService = game:GetService("TweenService")
+Core.RunService = game:GetService("RunService")
+Core.Camera = workspace.CurrentCamera
+Core.Debris = game:GetService("Debris")
+Core.Lighting = game:GetService("Lighting")
 
 -- Variables
-local LocalPlayer = Players.LocalPlayer
-local Mouse = LocalPlayer:GetMouse()
-local Toggled = true
-local ESPEnabled = false
-local FOVCircle = nil
-local AimbotEnabled = false
-local SilentAimEnabled = false
-local BulletTracersEnabled = false
-local TargetDot = nil
-local ActiveTracers = 0
-local MaxTracers = 10
-local ThirdPersonEnabled = false
-local ZoomEnabled = false
-local ZoomKey = Enum.UserInputType.MouseButton3
-local DefaultFOV = 70
-local ZoomFOV = 20
-local OriginalSensitivity = UserInputService.MouseDeltaSensitivity
-local CurrentTarget = nil
-local AimbotRunning = false
-local AimbotAnimation = nil
+Core.LocalPlayer = Core.Players.LocalPlayer
+Core.Mouse = Core.LocalPlayer:GetMouse()
+Core.Toggled = true
+Core.ESPEnabled = false
+Core.FOVCircle = nil
+Core.AimbotEnabled = false
+Core.SilentAimEnabled = false
+Core.BulletTracersEnabled = false
+Core.TargetDot = nil
+Core.ActiveTracers = 0
+Core.MaxTracers = 10
+Core.ThirdPersonEnabled = false
+Core.ZoomEnabled = false
+Core.ZoomKey = Enum.UserInputType.MouseButton3
+Core.DefaultFOV = 70
+Core.ZoomFOV = 20
+Core.OriginalSensitivity = Core.UserInputService.MouseDeltaSensitivity
+Core.CurrentTarget = nil
+Core.AimbotRunning = false
+Core.AimbotAnimation = nil
 
-local Settings = {
+Core.Settings = {
     Aimbot = {
         Enabled = false,
         FOV = 90,
@@ -118,19 +121,19 @@ local Settings = {
 }
 
 -- Constants
-local FONT = Enum.Font.GothamBold
-local PRIMARY_COLOR = Color3.fromRGB(40, 40, 50)
-local SECONDARY_COLOR = Color3.fromRGB(50, 50, 60)
-local ACCENT_COLOR = Color3.fromRGB(255, 182, 193)
-local TEXT_COLOR = Color3.fromRGB(255, 255, 255)
-local SECONDARY_TEXT_COLOR = Color3.fromRGB(180, 180, 195)
-local SHADOW_COLOR = Color3.fromRGB(20, 20, 25)
-local TOGGLE_ON_COLOR = Color3.fromRGB(255, 182, 193)
-local TOGGLE_OFF_COLOR = Color3.fromRGB(60, 60, 80)
-local OUTLINE_COLOR = Color3.fromRGB(255, 182, 193)
+Core.FONT = Enum.Font.GothamBold
+Core.PRIMARY_COLOR = Color3.fromRGB(40, 40, 50)
+Core.SECONDARY_COLOR = Color3.fromRGB(50, 50, 60)
+Core.ACCENT_COLOR = Color3.fromRGB(255, 182, 193)
+Core.TEXT_COLOR = Color3.fromRGB(255, 255, 255)
+Core.SECONDARY_TEXT_COLOR = Color3.fromRGB(180, 180, 195)
+Core.SHADOW_COLOR = Color3.fromRGB(20, 20, 25)
+Core.TOGGLE_ON_COLOR = Color3.fromRGB(255, 182, 193)
+Core.TOGGLE_OFF_COLOR = Color3.fromRGB(60, 60, 80)
+Core.OUTLINE_COLOR = Color3.fromRGB(255, 182, 193)
 
 -- Sky Color Presets
-local SkyColors = {
+Core.SkyColors = {
     Default = {SkyColor = nil, Ambient = nil},
     Pink = {SkyColor = Color3.fromRGB(255, 182, 193), Ambient = Color3.fromRGB(255, 192, 203)},
     Sunset = {SkyColor = Color3.fromRGB(255, 147, 79), Ambient = Color3.fromRGB(200, 100, 50)},
@@ -139,10 +142,10 @@ local SkyColors = {
 }
 
 -- Materials for Chams and Hand Chams
-local Materials = {"Neon", "ForceField", "Glass", "SmoothPlastic"}
+Core.Materials = {"Neon", "ForceField", "Glass", "SmoothPlastic"}
 
 -- Utility Functions
-local function CreateInstance(instanceType, properties)
+function Core.CreateInstance(instanceType, properties)
     local instance = Instance.new(instanceType)
     for property, value in pairs(properties) do
         instance[property] = value
@@ -150,7 +153,7 @@ local function CreateInstance(instanceType, properties)
     return instance
 end
 
-local function MakeDraggable(frame)
+function Core.MakeDraggable(frame)
     local dragToggle = nil
     local dragSpeed = 0.1
     local dragStart = nil
@@ -160,7 +163,7 @@ local function MakeDraggable(frame)
         local delta = input.Position - dragStart
         local position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
                                  startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        TweenService:Create(frame, TweenInfo.new(dragSpeed), {Position = position}):Play()
+        Core.TweenService:Create(frame, TweenInfo.new(dragSpeed), {Position = position}):Play()
     end
 
     frame.InputBegan:Connect(function(input)
@@ -183,7 +186,7 @@ local function MakeDraggable(frame)
     end)
 end
 
-local function ConvertVector(Vector)
+function Core.ConvertVector(Vector)
     return Vector2.new(Vector.X, Vector.Y)
 end
 
@@ -203,4 +206,4 @@ else
 end
 
 -- Initialize Zoom
-Camera.FieldOfView = DefaultFOV
+Core.Camera.FieldOfView = Core.DefaultFOV
