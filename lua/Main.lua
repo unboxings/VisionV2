@@ -27,6 +27,7 @@ local function loadModule(moduleName)
 end
 
 -- Create a global Core table to hold shared variables
+print("Initializing Core table...")
 _G.Core = {}
 
 -- Services
@@ -194,8 +195,11 @@ function Core.ConvertVector(Vector)
 end
 
 -- Load all modules
+print("Loading Aimbot module...")
 local Aimbot = loadModule("Aimbot")
+print("Loading Visuals module...")
 local Visuals = loadModule("Visuals")
+print("Loading GUI module...")
 local GUI = loadModule("GUI")
 
 -- Check if all modules loaded successfully
