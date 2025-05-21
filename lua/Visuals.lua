@@ -1,45 +1,72 @@
 -- Visuals.lua
 local Visuals = {}
 
--- ESP Implementation
+-- ESP Implementation using BillboardGui and Highlight
 local ESP = {}
 ESP.Objects = {}
 
 local function CreateESP(player)
     if player == Core.Players.LocalPlayer then return end
-    
+
     local esp = {
-        Drawing = {
-            Box = Drawing.new("Square"),
-            Name = Drawing.new("Text"),
-            Distance = Drawing.new("Text"),
-            Health = Drawing.new("Text"),
-            Weapon = Drawing.new("Text"),
-            Skeleton = {
-                Head = Drawing.new("Line"),
-                Torso = Drawing.new("Line"),
-                LeftArm = Drawing.new("Line"),
-                RightArm = Drawing.new("Line"),
-                LeftLeg = Drawing.new("Line"),
-                RightLeg = Drawing.new("Line")
-            }
+        BillboardGui = nil, -- For text labels (Name, Distance, Health, Weapon)
+        Highlight = nil,    -- For box
+        Labels = {
+            Name = nil,
+            Distance = nil,
+            Health = nil,
+            Weapon = nil
         }
+        -- Skeleton ESP is disabled in this version due to Drawing library removal
     }
-    
-    for _, draw in pairs(esp.Drawing) do
-        if type(draw) == "table" then
-            for _, line in pairs(draw) do
-                line.Visible = false
-                line.Thickness = 1
-                line.Color = Core.Settings.Visuals.EnemyColor
-            end
-        else
-            draw.Visible = false
-            draw.Color = Core.Settings.Visuals.EnemyColor
-            draw.Thickness = 1
-        end
+
+    -- Create BillboardGui for text labels
+    local billboardGui = Instance.new("BillboardGui")
+    billboardGui.Name = "ESP_" .. player.Name
+    billboardGui.Size = UDim2.new(0, 200, 0, 100)
+    billboardGui.StudsOffset = Vector3.new(0, 3, 0) -- Position above the player's head
+    billboardGui.AlwaysOnTop = true
+    billboardGui.MaxDistance = 2000
+    billboardGui.Enabled = false
+    esp.BillboardGui = billboardGui
+
+    -- Create labels for Name, Distance, Health, and Weapon
+    local function createLabel(name, offsetY, size)
+        local label = Instance.new("TextLabel")
+        label.Name = name
+        label.Size = UDim2.new(1, 0, 0, size)
+        label.Position = UDim2.new(0, 0, 0, offsetY)
+        label.BackgroundTransparency = 1
+        label.TextColor3 = Core.Settings.Visuals.EnemyColor
+        label.TextSize = size
+        label.Font = Enum.Font.SourceSansBold
+        label.Text = ""
+        label.Visible = false
+        label.Parent = billboardGui
+        return label
     end
-    
+
+    esp.Labels.Name = createLabel("Name", 0, 16)
+    esp.Labels.Distance = createLabel("Distance", 20, 14)
+    esp.Labels.Health = createLabel("Health", 40, 14)
+    esp.Labels.Weapon = createLabel("Weapon", 60, 14)
+
+    -- Create Highlight for box
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ESPBox_" .. player.Name
+    highlight.FillColor = Core.Settings.Visuals.EnemyColor
+    highlight.OutlineColor = Core.OUTLINE_COLOR
+    highlight.FillTransparency = 0.5
+    highlight.OutlineTransparency = 0
+    highlight.Enabled = false
+    esp.Highlight = highlight
+
+    -- Parent BillboardGui and Highlight to player character when available
+    if player.Character then
+        billboardGui.Adornee = player.Character:FindFirstChild("Head")
+        highlight.Adornee = player.Character
+    end
+
     ESP.Objects[player] = esp
 end
 
@@ -48,176 +75,71 @@ local function UpdateESP()
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChildOfClass("Humanoid") then
             local hrp = player.Character.HumanoidRootPart
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            local screenPos, onScreen = Core.Camera:WorldToViewportPoint(hrp.Position)
-            
-            if onScreen and Core.Settings.Visuals.ESPEnabled then
+            local head = player.Character:FindFirstChild("Head")
+
+            -- Update Adornee for BillboardGui and Highlight
+            if head and esp.BillboardGui.Adornee ~= head then
+                esp.BillboardGui.Adornee = head
+            end
+            if esp.Highlight.Adornee ~= player.Character then
+                esp.Highlight.Adornee = player.Character
+            end
+
+            if Core.Settings.Visuals.ESPEnabled then
                 local isTeam = Core.Settings.Visuals.TeamCheck and player.Team == Core.Players.LocalPlayer.Team
                 local color = isTeam and Core.Settings.Visuals.TeamColor or Core.Settings.Visuals.EnemyColor
-                
-                if Core.Settings.Visuals.Box then
-                    local scale = 2000 / (Core.Camera.CFrame.Position - hrp.Position).Magnitude
-                    esp.Drawing.Box.Size = Vector2.new(scale * 2, scale * 3)
-                    esp.Drawing.Box.Position = Vector2.new(screenPos.X - esp.Drawing.Box.Size.X / 2, screenPos.Y - esp.Drawing.Box.Size.Y / 2)
-                    esp.Drawing.Box.Color = color
-                    esp.Drawing.Box.Thickness = 2
-                    esp.Drawing.Box.Visible = true
-                else
-                    esp.Drawing.Box.Visible = false
-                end
-                
+
+                -- Update BillboardGui visibility
+                esp.BillboardGui.Enabled = true
+                esp.BillboardGui.Parent = Core.Players.LocalPlayer:FindFirstChild("PlayerGui") or game:GetService("StarterGui")
+
+                -- Update Highlight visibility
+                esp.Highlight.Enabled = Core.Settings.Visuals.Box
+                esp.Highlight.Parent = player.Character
+                esp.Highlight.FillColor = color
+
                 if Core.Settings.Visuals.Name then
-                    esp.Drawing.Name.Text = player.Name
-                    esp.Drawing.Name.Position = Vector2.new(screenPos.X, screenPos.Y - 30)
-                    esp.Drawing.Name.Size = 16
-                    esp.Drawing.Name.Color = color
-                    esp.Drawing.Name.Visible = true
+                    esp.Labels.Name.Text = player.Name
+                    esp.Labels.Name.TextColor3 = color
+                    esp.Labels.Name.Visible = true
                 else
-                    esp.Drawing.Name.Visible = false
+                    esp.Labels.Name.Visible = false
                 end
-                
+
                 if Core.Settings.Visuals.Distance then
                     local distance = (Core.Players.LocalPlayer.Character and Core.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and (Core.Players.LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude) or 0
-                    esp.Drawing.Distance.Text = string.format("%.0f studs", distance)
-                    esp.Drawing.Distance.Position = Vector2.new(screenPos.X, screenPos.Y + 20)
-                    esp.Drawing.Distance.Size = 14
-                    esp.Drawing.Distance.Color = color
-                    esp.Drawing.Distance.Visible = true
+                    esp.Labels.Distance.Text = string.format("%.0f studs", distance)
+                    esp.Labels.Distance.TextColor3 = color
+                    esp.Labels.Distance.Visible = true
                 else
-                    esp.Drawing.Distance.Visible = false
+                    esp.Labels.Distance.Visible = false
                 end
-                
+
                 if Core.Settings.Visuals.Health and humanoid then
-                    esp.Drawing.Health.Text = string.format("%d HP", humanoid.Health)
-                    esp.Drawing.Health.Position = Vector2.new(screenPos.X + 50, screenPos.Y)
-                    esp.Drawing.Health.Size = 14
-                    esp.Drawing.Health.Color = color
-                    esp.Drawing.Health.Visible = true
+                    esp.Labels.Health.Text = string.format("%d HP", humanoid.Health)
+                    esp.Labels.Health.TextColor3 = color
+                    esp.Labels.Health.Visible = true
                 else
-                    esp.Drawing.Health.Visible = false
+                    esp.Labels.Health.Visible = false
                 end
-                
+
                 if Core.Settings.Visuals.Weapon then
                     local tool = player.Character:FindFirstChildOfClass("Tool")
-                    esp.Drawing.Weapon.Text = tool and tool.Name or "None"
-                    local yOffset = Core.Settings.Visuals.Name and -50 or -30
-                    esp.Drawing.Weapon.Position = Vector2.new(screenPos.X, screenPos.Y + yOffset)
-                    esp.Drawing.Weapon.Size = 14
-                    esp.Drawing.Weapon.Color = color
-                    esp.Drawing.Weapon.Visible = true
+                    esp.Labels.Weapon.Text = tool and tool.Name or "None"
+                    esp.Labels.Weapon.TextColor3 = color
+                    esp.Labels.Weapon.Visible = true
                 else
-                    esp.Drawing.Weapon.Visible = false
+                    esp.Labels.Weapon.Visible = false
                 end
-                
-                if Core.Settings.Visuals.Skeleton then
-                    local parts = {
-                        Head = player.Character:FindFirstChild("Head"),
-                        Torso = player.Character:FindFirstChild("Torso") or player.Character:FindFirstChild("UpperTorso"),
-                        LeftArm = player.Character:FindFirstChild("LeftUpperArm") or player.Character:FindFirstChild("Left Arm"),
-                        RightArm = player.Character:FindFirstChild("RightUpperArm") or player.Character:FindFirstChild("Right Arm"),
-                        LeftLeg = player.Character:FindFirstChild("LeftUpperLeg") or player.Character:FindFirstChild("Left Leg"),
-                        RightLeg = player.Character:FindFirstChild("RightUpperLeg") or player.Character:FindFirstChild("Right Leg")
-                    }
-                    
-                    if parts.Head and parts.Torso then
-                        local headPos, headOnScreen = Core.Camera:WorldToViewportPoint(parts.Head.Position)
-                        local torsoPos, torsoOnScreen = Core.Camera:WorldToViewportPoint(parts.Torso.Position)
-                        if headOnScreen and torsoOnScreen then
-                            esp.Drawing.Skeleton.Head.From = Vector2.new(headPos.X, headPos.Y)
-                            esp.Drawing.Skeleton.Head.To = Vector2.new(torsoPos.X, torsoPos.Y)
-                            esp.Drawing.Skeleton.Head.Color = color
-                            esp.Drawing.Skeleton.Head.Visible = true
-                        else
-                            esp.Drawing.Skeleton.Head.Visible = false
-                        end
-                    else
-                        esp.Drawing.Skeleton.Head.Visible = false
-                    end
-                    
-                    if parts.Torso and parts.LeftArm then
-                        local torsoPos, torsoOnScreen = Core.Camera:WorldToViewportPoint(parts.Torso.Position)
-                        local armPos, armOnScreen = Core.Camera:WorldToViewportPoint(parts.LeftArm.Position)
-                        if torsoOnScreen and armOnScreen then
-                            esp.Drawing.Skeleton.LeftArm.From = Vector2.new(torsoPos.X, torsoPos.Y)
-                            esp.Drawing.Skeleton.LeftArm.To = Vector2.new(armPos.X, armPos.Y)
-                            esp.Drawing.Skeleton.LeftArm.Color = color
-                            esp.Drawing.Skeleton.LeftArm.Visible = true
-                        else
-                            esp.Drawing.Skeleton.LeftArm.Visible = false
-                        end
-                    else
-                        esp.Drawing.Skeleton.LeftArm.Visible = false
-                    end
-                    
-                    if parts.Torso and parts.RightArm then
-                        local torsoPos, torsoOnScreen = Core.Camera:WorldToViewportPoint(parts.Torso.Position)
-                        local armPos, armOnScreen = Core.Camera:WorldToViewportPoint(parts.RightArm.Position)
-                        if torsoOnScreen and armOnScreen then
-                            esp.Drawing.Skeleton.RightArm.From = Vector2.new(torsoPos.X, torsoPos.Y)
-                            esp.Drawing.Skeleton.RightArm.To = Vector2.new(armPos.X, armPos.Y)
-                            esp.Drawing.Skeleton.RightArm.Color = color
-                            esp.Drawing.Skeleton.RightArm.Visible = true
-                        else
-                            esp.Drawing.Skeleton.RightArm.Visible = false
-                        end
-                    else
-                        esp.Drawing.Skeleton.RightArm.Visible = false
-                    end
-                    
-                    if parts.Torso and parts.LeftLeg then
-                        local torsoPos, torsoOnScreen = Core.Camera:WorldToViewportPoint(parts.Torso.Position)
-                        local legPos, legOnScreen = Core.Camera:WorldToViewportPoint(parts.LeftLeg.Position)
-                        if torsoOnScreen and legOnScreen then
-                            esp.Drawing.Skeleton.LeftLeg.From = Vector2.new(torsoPos.X, torsoPos.Y)
-                            esp.Drawing.Skeleton.LeftLeg.To = Vector2.new(legPos.X, legPos.Y)
-                            esp.Drawing.Skeleton.LeftLeg.Color = color
-                            esp.Drawing.Skeleton.LeftLeg.Visible = true
-                        else
-                            esp.Drawing.Skeleton.LeftLeg.Visible = false
-                        end
-                    else
-                        esp.Drawing.Skeleton.LeftLeg.Visible = false
-                    end
-                    
-                    if parts.Torso and parts.RightLeg then
-                        local torsoPos, torsoOnScreen = Core.Camera:WorldToViewportPoint(parts.Torso.Position)
-                        local legPos, legOnScreen = Core.Camera:WorldToViewportPoint(parts.RightLeg.Position)
-                        if torsoOnScreen and legOnScreen then
-                            esp.Drawing.Skeleton.RightLeg.From = Vector2.new(torsoPos.X, torsoPos.Y)
-                            esp.Drawing.Skeleton.RightLeg.To = Vector2.new(legPos.X, legPos.Y)
-                            esp.Drawing.Skeleton.RightLeg.Color = color
-                            esp.Drawing.Skeleton.RightLeg.Visible = true
-                        else
-                            esp.Drawing.Skeleton.RightLeg.Visible = false
-                        end
-                    else
-                        esp.Drawing.Skeleton.RightLeg.Visible = false
-                    end
-                else
-                    for _, line in pairs(esp.Drawing.Skeleton) do
-                        line.Visible = false
-                    end
-                end
+
+                -- Skeleton ESP is disabled in this version
             else
-                for _, draw in pairs(esp.Drawing) do
-                    if type(draw) == "table" then
-                        for _, line in pairs(draw) do
-                            line.Visible = false
-                        end
-                    else
-                        draw.Visible = false
-                    end
-                end
+                esp.BillboardGui.Enabled = false
+                esp.Highlight.Enabled = false
             end
         else
-            for _, draw in pairs(esp.Drawing) do
-                if type(draw) == "table" then
-                    for _, line in pairs(draw) do
-                        line.Visible = false
-                    end
-                else
-                    draw.Visible = false
-                end
-            end
+            esp.BillboardGui.Enabled = false
+            esp.Highlight.Enabled = false
         end
     end
 end
@@ -431,14 +353,11 @@ function Visuals:DisableESP()
     Core.Settings.Visuals.ESPEnabled = false
     Core.ESPEnabled = false
     for _, esp in pairs(ESP.Objects) do
-        for _, draw in pairs(esp.Drawing) do
-            if type(draw) == "table" then
-                for _, line in pairs(draw) do
-                    line:Remove()
-                end
-            else
-                draw:Remove()
-            end
+        if esp.BillboardGui then
+            esp.BillboardGui:Destroy()
+        end
+        if esp.Highlight then
+            esp.Highlight:Destroy()
         end
     end
     ESP.Objects = {}
