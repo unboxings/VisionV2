@@ -30,17 +30,42 @@ end
 print("Initializing Core table...")
 _G.Core = {}
 
--- Services
-Core.Players = game:GetService("Players")
-Core.UserInputService = game:GetService("UserInputService")
-Core.TweenService = game:GetService("TweenService")
-Core.RunService = game:GetService("RunService")
-Core.Camera = workspace.CurrentCamera
-Core.Debris = game:GetService("Debris")
-Core.Lighting = game:GetService("Lighting")
+-- Wait for game object to be available
+print("Waiting for game object...")
+repeat
+    wait(0.1)
+    if not game then
+        print("Game object not yet available, waiting...")
+    end
+until game
+
+-- Services with error handling
+local success, err = pcall(function()
+    Core.Players = game:GetService("Players")
+    Core.UserInputService = game:GetService("UserInputService")
+    Core.TweenService = game:GetService("TweenService")
+    Core.RunService = game:GetService("RunService")
+    Core.Camera = workspace.CurrentCamera
+    Core.Debris = game:GetService("Debris")
+    Core.Lighting = game:GetService("Lighting")
+end)
+
+if not success then
+    warn("Failed to initialize services: " .. err)
+    return
+end
+
+print("Services initialized successfully!")
 
 -- Variables
 Core.LocalPlayer = Core.Players.LocalPlayer
+if not Core.LocalPlayer then
+    warn("LocalPlayer not found, waiting...")
+    repeat
+        wait(0.1)
+        Core.LocalPlayer = Core.Players.LocalPlayer
+    until Core.LocalPlayer
+end
 Core.Mouse = Core.LocalPlayer:GetMouse()
 Core.Toggled = true
 Core.ESPEnabled = false
