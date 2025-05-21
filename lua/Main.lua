@@ -1,21 +1,24 @@
 -- Main.lua
 local HttpService = game:GetService("HttpService")
 
--- Updated BASE_URL to point to your GitHub repository
+-- BASE_URL for your GitHub repository
 local BASE_URL = "https://raw.githubusercontent.com/unboxings/VisionV2/main/lua/"
 
 -- Function to load a module from a URL
 local function loadModule(moduleName)
     local url = BASE_URL .. moduleName .. ".lua"
+    print("Attempting to load module: " .. moduleName .. " from " .. url)
     local success, result = pcall(function()
         return game:HttpGet(url)
     end)
     if success then
+        print("Successfully fetched " .. moduleName)
         local func, err = loadstring(result)
         if func then
+            print("Successfully compiled " .. moduleName)
             return func()
         else
-            warn("Failed to load " .. moduleName .. ": " .. err)
+            warn("Failed to compile " .. moduleName .. ": " .. err)
         end
     else
         warn("Failed to fetch " .. moduleName .. ": " .. result)
