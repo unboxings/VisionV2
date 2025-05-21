@@ -32,20 +32,35 @@ _G.Core = {}
 
 -- Wait for the game to fully load
 print("Waiting for game to load...")
-if not game:IsLoaded() then
-    game.Loaded:Wait()
+if game and game:IsLoaded then
+    if not game:IsLoaded() then
+        game.Loaded:Wait()
+    end
+else
+    print("Game object not found, waiting for 10 seconds...")
+    task.wait(10) -- Fallback delay if game is not available
 end
-print("Game loaded successfully!")
+print("Game loaded successfully or timeout reached!")
 
 -- Wait for game and workspace objects to be available
 print("Waiting for game and workspace objects...")
+local maxWaitTime = 15 -- Maximum wait time in seconds
+local waitTime = 0
 while not game or not workspace do
     print("Game or Workspace not yet available, waiting...")
-    task.wait(0.1) -- Use task.wait instead of wait for better reliability
+    task.wait(0.1)
+    waitTime = waitTime + 0.1
+    if waitTime >= maxWaitTime then
+        warn("Timeout waiting for game and workspace objects")
+        break
+    end
 end
 
--- Services with error handling
+-- Services with enhanced error handling
 local success, err = pcall(function()
+    if not game then
+        error("Game object is nil")
+    end
     Core.Players = game:GetService("Players")
     if not Core.Players then
         error("Players service not available")
@@ -54,6 +69,9 @@ local success, err = pcall(function()
     Core.TweenService = game:GetService("TweenService")
     Core.RunService = game:GetService("RunService")
     Core.Camera = workspace.CurrentCamera
+    if not Core.Camera then
+        error("Camera not found in workspace")
+    end
     Core.Debris = game:GetService("Debris")
     Core.Lighting = game:GetService("Lighting")
 end)
@@ -69,7 +87,15 @@ print("Services initialized successfully!")
 Core.LocalPlayer = Core.Players.LocalPlayer
 if not Core.LocalPlayer then
     warn("LocalPlayer not found, waiting...")
-    Core.LocalPlayer = Core.Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+    local startTime = tick()
+    repeat
+        task.wait(0.1)
+        Core.LocalPlayer = Core.Players.LocalPlayer
+        if tick() - startTime > 10 then
+            warn("Timeout waiting for LocalPlayer")
+            break
+        end
+    until Core.LocalPlayer
 end
 Core.Mouse = Core.LocalPlayer:GetMouse()
 Core.Toggled = true
