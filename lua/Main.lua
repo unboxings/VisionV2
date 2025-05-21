@@ -30,14 +30,21 @@ end
 print("Initializing Core table...")
 _G.Core = {}
 
--- Wait for game object to be available
-print("Waiting for game object...")
+-- Initial delay to allow Roblox environment to load
+print("Waiting for Roblox environment (5 seconds)...")
+wait(5) -- Increased delay to 5 seconds
+
+-- Wait for game and workspace objects to be available
+print("Waiting for game and workspace objects...")
 repeat
     wait(0.1)
     if not game then
         print("Game object not yet available, waiting...")
     end
-until game
+    if not workspace then
+        print("Workspace not yet available, waiting...")
+    end
+until game and workspace
 
 -- Services with error handling
 local success, err = pcall(function()
@@ -64,7 +71,7 @@ if not Core.LocalPlayer then
     repeat
         wait(0.1)
         Core.LocalPlayer = Core.Players.LocalPlayer
-    until Core.LocalPlayer
+    until Core.LocalPlayer or not Core.Players.Parent
 end
 Core.Mouse = Core.LocalPlayer:GetMouse()
 Core.Toggled = true
