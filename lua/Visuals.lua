@@ -1,89 +1,45 @@
--- Visuals.lua
 local Visuals = {}
+local VisionV2 = nil
 
--- ESP Implementation using BillboardGui and Highlight
+-- ESP Implementation
 local ESP = {}
 ESP.Objects = {}
 
 local function CreateESP(player)
-    if player == Core.Players.LocalPlayer then return end
-
+    if player == VisionV2.Shared.LocalPlayer then return end
+    
     local esp = {
-        BillboardGui = nil, -- For text labels (Name, Distance, Health, Weapon)
-        Highlight = nil,    -- For box
-        Labels = {
-            Name = nil,
-            Distance = nil,
-            Health = nil,
-            Weapon = nil
+        Drawing = {
+            Box = Drawing.new("Square"),
+            Name = Drawing.new("Text"),
+            Distance = Drawing.new("Text"),
+            Health = Drawing.new("Text"),
+            Weapon = Drawing.new("Text"),
+            Skeleton = {
+                Head = Drawing.new("Line"),
+                Torso = Drawing.new("Line"),
+                LeftArm = Drawing.new("Line"),
+                RightArm = Drawing.new("Line"),
+                LeftLeg = Drawing.new("Line"),
+                RightLeg = Drawing.new("Line")
+            }
         }
     }
-
-    -- Create BillboardGui for text labels
-    local success, billboardGui = pcall(function()
-        local gui = Instance.new("BillboardGui")
-        gui.Name = "ESP_" .. player.Name
-        gui.Size = UDim2.new(0, 200, 0, 100)
-        gui.StudsOffset = Vector3.new(0, 3, 0)
-        gui.AlwaysOnTop = true
-        gui.MaxDistance = 2000
-        gui.Enabled = false
-        return gui
-    end)
-
-    if not success then
-        warn("Failed to create BillboardGui for " .. player.Name .. ": " .. billboardGui)
-        return
+    
+    for _, draw in pairs(esp.Drawing) do
+        if type(draw) == "table" then
+            for _, line in pairs(draw) do
+                line.Visible = false
+                line.Thickness = 1
+                line.Color = VisionV2.Shared.Settings.ESP.EnemyColor
+            end
+        else
+            draw.Visible = false
+            draw.Color = VisionV2.Shared.Settings.ESP.EnemyColor
+            draw.Thickness = 1
+        end
     end
-
-    esp.BillboardGui = billboardGui
-
-    -- Create labels for Name, Distance, Health, and Weapon
-    local function createLabel(name, offsetY, size)
-        local label = Instance.new("TextLabel")
-        label.Name = name
-        label.Size = UDim2.new(1, 0, 0, size)
-        label.Position = UDim2.new(0, 0, 0, offsetY)
-        label.BackgroundTransparency = 1
-        label.TextColor3 = Core.Settings.Visuals.EnemyColor
-        label.TextSize = size
-        label.Font = Enum.Font.SourceSansBold
-        label.Text = ""
-        label.Visible = false
-        label.Parent = billboardGui
-        return label
-    end
-
-    esp.Labels.Name = createLabel("Name", 0, 16)
-    esp.Labels.Distance = createLabel("Distance", 20, 14)
-    esp.Labels.Health = createLabel("Health", 40, 14)
-    esp.Labels.Weapon = createLabel("Weapon", 60, 14)
-
-    -- Create Highlight for box
-    local success, highlight = pcall(function()
-        local hl = Instance.new("Highlight")
-        hl.Name = "ESPBox_" .. player.Name
-        hl.FillColor = Core.Settings.Visuals.EnemyColor
-        hl.OutlineColor = Core.OUTLINE_COLOR
-        hl.FillTransparency = 0.5
-        hl.OutlineTransparency = 0
-        hl.Enabled = false
-        return hl
-    end)
-
-    if not success then
-        warn("Failed to create Highlight for " .. player.Name .. ": " .. highlight)
-        return
-    end
-
-    esp.Highlight = highlight
-
-    -- Parent BillboardGui and Highlight to player character when available
-    if player.Character then
-        billboardGui.Adornee = player.Character:FindFirstChild("Head")
-        highlight.Adornee = player.Character
-    end
-
+    
     ESP.Objects[player] = esp
 end
 
@@ -92,97 +48,309 @@ local function UpdateESP()
         if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChildOfClass("Humanoid") then
             local hrp = player.Character.HumanoidRootPart
             local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
-            local head = player.Character:FindFirstChild("Head")
-
-            -- Update Adornee for BillboardGui and Highlight
-            if head and esp.BillboardGui.Adornee ~= head then
-                esp.BillboardGui.Adornee = head
-            end
-            if esp.Highlight.Adornee ~= player.Character then
-                esp.Highlight.Adornee = player.Character
-            end
-
-            if Core.Settings.Visuals.ESPEnabled then
-                local isTeam = Core.Settings.Visuals.TeamCheck and player.Team == Core.Players.LocalPlayer.Team
-                local color = isTeam and Core.Settings.Visuals.TeamColor or Core.Settings.Visuals.EnemyColor
-
-                -- Ensure PlayerGui exists before parenting
-                local playerGui = Core.Players.LocalPlayer:FindFirstChild("PlayerGui")
-                if not playerGui then
-                    warn("PlayerGui not found for local player. ESP may not display for " .. player.Name)
-                    esp.BillboardGui.Enabled = false
-                    esp.Highlight.Enabled = false
-                    return
-                end
-
-                -- Update BillboardGui visibility
-                esp.BillboardGui.Enabled = true
-                esp.BillboardGui.Parent = playerGui
-
-                -- Update Highlight visibility
-                esp.Highlight.Enabled = Core.Settings.Visuals.Box
-                esp.Highlight.Parent = player.Character
-                esp.Highlight.FillColor = color
-
-                if Core.Settings.Visuals.Name then
-                    esp.Labels.Name.Text = player.Name
-                    esp.Labels.Name.TextColor3 = color
-                    esp.Labels.Name.Visible = true
+            local screenPos, onScreen = VisionV2.Shared.Camera:WorldToViewportPoint(hrp.Position)
+            
+            if onScreen and VisionV2.Shared.ESPEnabled then
+                local isTeam = VisionV2.Shared.Settings.ESP.TeamCheck and player.Team == VisionV2.Shared.LocalPlayer.Team
+                local color = isTeam and VisionV2.Shared.Settings.ESP.TeamColor or VisionV2.Shared.Settings.ESP.EnemyColor
+                
+                if VisionV2.Shared.Settings.ESP.Box then
+                    local scale = 2000 / (VisionV2.Shared.Camera.CFrame.Position - hrp.Position).Magnitude
+                    esp.Drawing.Box.Size = Vector2.new(scale * 2, scale * 3)
+                    esp.Drawing.Box.Position = Vector2.new(screenPos.X - esp.Drawing.Box.Size.X / 2, screenPos.Y - esp.Drawing.Box.Size.Y / 2)
+                    esp.Drawing.Box.Color = color
+                    esp.Drawing.Box.Thickness = 2
+                    esp.Drawing.Box.Visible = true
                 else
-                    esp.Labels.Name.Visible = false
+                    esp.Drawing.Box.Visible = false
                 end
-
-                if Core.Settings.Visuals.Distance then
-                    local distance = (Core.Players.LocalPlayer.Character and Core.Players.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and (Core.Players.LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude) or 0
-                    esp.Labels.Distance.Text = string.format("%.0f studs", distance)
-                    esp.Labels.Distance.TextColor3 = color
-                    esp.Labels.Distance.Visible = true
+                
+                if VisionV2.Shared.Settings.ESP.Name then
+                    esp.Drawing.Name.Text = player.Name
+                    esp.Drawing.Name.Position = Vector2.new(screenPos.X, screenPos.Y - 30)
+                    esp.Drawing.Name.Size = 16
+                    esp.Drawing.Name.Color = color
+                    esp.Drawing.Name.Visible = true
                 else
-                    esp.Labels.Distance.Visible = false
+                    esp.Drawing.Name.Visible = false
                 end
-
-                if Core.Settings.Visuals.Health and humanoid then
-                    esp.Labels.Health.Text = string.format("%d HP", humanoid.Health)
-                    esp.Labels.Health.TextColor3 = color
-                    esp.Labels.Health.Visible = true
+                
+                if VisionV2.Shared.Settings.ESP.Distance then
+                    local distance = (VisionV2.Shared.LocalPlayer.Character and VisionV2.Shared.LocalPlayer.Character:FindFirstChild("HumanoidRootPart") and (VisionV2.Shared.LocalPlayer.Character.HumanoidRootPart.Position - hrp.Position).Magnitude) or 0
+                    esp.Drawing.Distance.Text = string.format("%.0f studs", distance)
+                    esp.Drawing.Distance.Position = Vector2.new(screenPos.X, screenPos.Y + 20)
+                    esp.Drawing.Distance.Size = 14
+                    esp.Drawing.Distance.Color = color
+                    esp.Drawing.Distance.Visible = true
                 else
-                    esp.Labels.Health.Visible = false
+                    esp.Drawing.Distance.Visible = false
                 end
-
-                if Core.Settings.Visuals.Weapon then
+                
+                if VisionV2.Shared.Settings.ESP.Health and humanoid then
+                    esp.Drawing.Health.Text = string.format("%d HP", humanoid.Health)
+                    esp.Drawing.Health.Position = Vector2.new(screenPos.X + 50, screenPos.Y)
+                    esp.Drawing.Health.Size = 14
+                    esp.Drawing.Health.Color = color
+                    esp.Drawing.Health.Visible = true
+                else
+                    esp.Drawing.Health.Visible = false
+                end
+                
+                if VisionV2.Shared.Settings.ESP.Weapon then
                     local tool = player.Character:FindFirstChildOfClass("Tool")
-                    esp.Labels.Weapon.Text = tool and tool.Name or "None"
-                    esp.Labels.Weapon.TextColor3 = color
-                    esp.Labels.Weapon.Visible = true
+                    esp.Drawing.Weapon.Text = tool and tool.Name or "None"
+                    local yOffset = VisionV2.Shared.Settings.ESP.Name and -50 or -30
+                    esp.Drawing.Weapon.Position = Vector2.new(screenPos.X, screenPos.Y + yOffset)
+                    esp.Drawing.Weapon.Size = 14
+                    esp.Drawing.Weapon.Color = color
+                    esp.Drawing.Weapon.Visible = true
                 else
-                    esp.Labels.Weapon.Visible = false
+                    esp.Drawing.Weapon.Visible = false
+                end
+                
+                if VisionV2.Shared.Settings.ESP.Skeleton then
+                    local parts = {
+                        Head = player.Character:FindFirstChild("Head"),
+                        Torso = player.Character:FindFirstChild("Torso") or player.Character:FindFirstChild("UpperTorso"),
+                        LeftArm = player.Character:FindFirstChild("LeftUpperArm") or player.Character:FindFirstChild("Left Arm"),
+                        RightArm = player.Character:FindFirstChild("RightUpperArm") or player.Character:FindFirstChild("Right Arm"),
+                        LeftLeg = player.Character:FindFirstChild("LeftUpperLeg") or player.Character:FindFirstChild("Left Leg"),
+                        RightLeg = player.Character:FindFirstChild("RightUpperLeg") or player.Character:FindFirstChild("Right Leg")
+                    }
+                    
+                    if parts.Head and parts.Torso then
+                        local headPos, headOnScreen = VisionV2.Shared.Camera:WorldToViewportPoint(parts.Head.Position)
+                        local torsoPos, torsoOnScreen = VisionV2.Shared.Camera:WorldToViewportPoint(parts.Torso.Position)
+                        if headOnScreen and torsoOnScreen then
+                            esp.Drawing.Skeleton.Head.From = Vector2.new(headPos.X, headPos.Y)
+                            esp.Drawing.Skeleton.Head.To = Vector2.new(torsoPos.X, torsoPos.Y)
+                            esp.Drawing.Skeleton.Head.Color = color
+                            esp.Drawing.Skeleton.Head.Visible = true
+                        else
+                            esp.Drawing.Skeleton.Head.Visible = false
+                        end
+                    else
+                        esp.Drawing.Skeleton.Head.Visible = false
+                    end
+                    
+                    if parts.Torso and parts.LeftArm then
+                        local torsoPos, torsoOnScreen = VisionV2.Shared.Camera:WorldToViewportPoint(parts.Torso.Position)
+                        local armPos, armOnScreen = VisionV2.Shared.Camera:WorldToViewportPoint(parts.LeftArm.Position)
+                        if torsoOnScreen and armOnScreen then
+                            esp.Drawing.Skeleton.LeftArm.From = Vector2.new(torsoPos.X, torsoPos.Y)
+                            esp.Drawing.Skeleton.LeftArm.To = Vector2.new(armPos.X, armPos.Y)
+                            esp.Drawing.Skeleton.LeftArm.Color = color
+                            esp.Drawing.Skeleton.LeftArm.Visible = true
+                        else
+                            esp.Drawing.Skeleton.LeftArm.Visible = false
+                        end
+                    else
+                        esp.Drawing.Skeleton.LeftArm.Visible = false
+                    end
+                    
+                    if parts.Torso and parts.RightArm then
+                        local torsoPos, torsoOnScreen = VisionV2.Shared.Camera:WorldToViewportPoint(parts.Torso.Position)
+                        local armPos, armOnScreen = VisionV2.Shared.Camera:WorldToViewportPoint(parts.RightArm.Position)
+                        if torsoOnScreen and armOnScreen then
+                            esp.Drawing.Skeleton.RightArm.From = Vector2.new(torsoPos.X, torsoPos.Y)
+                            esp.Drawing.Skeleton.RightArm.To = Vector2.new(armPos.X, armPos.Y)
+                            esp.Drawing.Skeleton.RightArm.Color = color
+                            esp.Drawing.Skeleton.RightArm.Visible = true
+                        else
+                            esp.Drawing.Skeleton.RightArm.Visible = false
+                        end
+                    else
+                        esp.Drawing.Skeleton.RightArm.Visible = false
+                    end
+                    
+                    if parts.Torso and parts.LeftLeg then
+                        local torsoPos, torsoOnScreen = VisionV2.Shared.Camera:WorldToViewportPoint(parts.Torso.Position)
+                        local legPos, legOnScreen = VisionV2.Shared.Camera:WorldToViewportPoint(parts.LeftLeg.Position)
+                        if torsoOnScreen and legOnScreen then
+                            esp.Drawing.Skeleton.LeftLeg.From = Vector2.new(torsoPos.X, torsoPos.Y)
+                            esp.Drawing.Skeleton.LeftLeg.To = Vector2.new(legPos.X, legPos.Y)
+                            esp.Drawing.Skeleton.LeftLeg.Color = color
+                            esp.Drawing.Skeleton.LeftLeg.Visible = true
+                        else
+                            esp.Drawing.Skeleton.LeftLeg.Visible = false
+                        end
+                    else
+                        esp.Drawing.Skeleton.LeftLeg.Visible = false
+                    end
+                    
+                    if parts.Torso and parts.RightLeg then
+                        local torsoPos, torsoOnScreen = VisionV2.Shared.Camera:WorldToViewportPoint(parts.Torso.Position)
+                        local legPos, legOnScreen = VisionV2.Shared.Camera:WorldToViewportPoint(parts.RightLeg.Position)
+                        if torsoOnScreen and legOnScreen then
+                            esp.Drawing.Skeleton.RightLeg.From = Vector2.new(torsoPos.X, torsoPos.Y)
+                            esp.Drawing.Skeleton.RightLeg.To = Vector2.new(legPos.X, legPos.Y)
+                            esp.Drawing.Skeleton.RightLeg.Color = color
+                            esp.Drawing.Skeleton.RightLeg.Visible = true
+                        else
+                            esp.Drawing.Skeleton.RightLeg.Visible = false
+                        end
+                    else
+                        esp.Drawing.Skeleton.RightLeg.Visible = false
+                    end
+                else
+                    for _, line in pairs(esp.Drawing.Skeleton) do
+                        line.Visible = false
+                    end
                 end
             else
-                esp.BillboardGui.Enabled = false
-                esp.Highlight.Enabled = false
+                for _, draw in pairs(esp.Drawing) do
+                    if type(draw) == "table" then
+                        for _, line in pairs(draw) do
+                            line.Visible = false
+                        end
+                    else
+                        draw.Visible = false
+                    end
+                end
             end
         else
-            esp.BillboardGui.Enabled = false
-            esp.Highlight.Enabled = false
+            for _, draw in pairs(esp.Drawing) do
+                if type(draw) == "table" then
+                    for _, line in pairs(draw) do
+                        line.Visible = false
+                    end
+                else
+                    draw.Visible = false
+                end
+            end
         end
     end
 end
 
-local function ScanPlayers()
-    for _, player in pairs(Core.Players:GetPlayers()) do
-        if not ESP.Objects[player] and player ~= Core.Players.LocalPlayer then
-            CreateESP(player)
+-- Bullet Tracers Implementation
+local function CreateBulletTracer(startPos, endPos)
+    if not VisionV2.Shared.Settings.Weapon.BulletTracers or VisionV2.Shared.ActiveTracers >= VisionV2.Shared.MaxTracers then return end
+    VisionV2.Shared.ActiveTracers = VisionV2.Shared.ActiveTracers + 1
+
+    local beamPart = Instance.new("Part")
+    beamPart.Anchored = true
+    beamPart.CanCollide = false
+    beamPart.Size = Vector3.new(VisionV2.Shared.Settings.Weapon.TracerThickness/10, VisionV2.Shared.Settings.Weapon.TracerThickness/10, (endPos - startPos).Magnitude)
+    beamPart.Position = startPos + (endPos - startPos)/2
+    beamPart.CFrame = CFrame.lookAt(startPos, endPos)
+    beamPart.Material = Enum.Material[VisionV2.Shared.Settings.Weapon.TracerMaterial]
+    beamPart.Color = VisionV2.Shared.Settings.Weapon.TracerColor
+    beamPart.Transparency = 0
+    beamPart.Parent = workspace
+
+    local startTime = tick()
+    local fadeDuration = 0.5
+    local connection
+    connection = VisionV2.Shared.RunService.RenderStepped:Connect(function()
+        local elapsed = tick() - startTime
+        if elapsed >= fadeDuration then
+            connection:Disconnect()
+            beamPart:Destroy()
+            VisionV2.Shared.ActiveTracers = VisionV2.Shared.ActiveTracers - 1
+            return
         end
+        beamPart.Transparency = elapsed / fadeDuration
+    end)
+
+    VisionV2.Shared.Debris:AddItem(beamPart, fadeDuration)
+end
+
+local function SetupBulletTracers()
+    local weaponConnections = {}
+    
+    local function ConnectWeapon(weapon)
+        local handle = weapon:WaitForChild("Handle", 5)
+        if not handle then return end
+        weaponConnections[weapon] = weapon.Activated:Connect(function()
+            if not VisionV2.Shared.Settings.Weapon.BulletTracers then return end
+            
+            local muzzlePos = handle.Position
+            local targetPos
+            if VisionV2.Shared.SilentAimEnabled and VisionV2.Shared.CurrentTarget and VisionV2.Shared.CurrentTarget.Character and VisionV2.Shared.CurrentTarget.Character:FindFirstChild(VisionV2.Shared.Settings.Aimbot.TargetPart) then
+                local targetPart = VisionV2.Shared.CurrentTarget.Character[VisionV2.Shared.Settings.Aimbot.TargetPart]
+                targetPos = targetPart.Position
+                if VisionV2.Shared.Settings.Aimbot.PredictMovement and targetPart.Parent:FindFirstChild("HumanoidRootPart") then
+                    local hrp = targetPart.Parent.HumanoidRootPart
+                    local velocity = hrp.Velocity
+                    local distance = (VisionV2.Shared.Camera.CFrame.Position - targetPos).Magnitude
+                    local timeToHit = distance / VisionV2.Shared.Settings.Aimbot.BulletSpeed
+                    targetPos = targetPos + (velocity * timeToHit)
+                end
+            else
+                local unitRay = VisionV2.Shared.Camera:ScreenPointToRay(VisionV2.Shared.Mouse.X, VisionV2.Shared.Mouse.Y)
+                targetPos = muzzlePos + unitRay.Direction * 1000
+            end
+            if targetPos then
+                CreateBulletTracer(muzzlePos, targetPos)
+            end
+        end)
+    end
+
+    VisionV2.Shared.LocalPlayer.CharacterAdded:Connect(function(character)
+        character.ChildAdded:Connect(function(child)
+            if child:IsA("Tool") then
+                ConnectWeapon(child)
+            end
+        end)
+    end)
+    
+    if VisionV2.Shared.LocalPlayer.Character then
+        for _, child in pairs(VisionV2.Shared.LocalPlayer.Character:GetChildren()) do
+            if child:IsA("Tool") then
+                ConnectWeapon(child)
+            end
+        end
+    end
+end
+
+-- Target Dot Implementation
+local function CreateTargetDot()
+    local dot = Drawing.new("Circle")
+    dot.Thickness = 1
+    dot.NumSides = 20
+    dot.Radius = 5
+    dot.Visible = false
+    dot.Color = VisionV2.Shared.Settings.ESP.EnemyColor
+    dot.Filled = true
+    dot.Transparency = 1
+    return dot
+end
+
+local function UpdateTargetDot()
+    if not VisionV2.Shared.TargetDot then return end
+    if VisionV2.Shared.SilentAimEnabled and VisionV2.Shared.CurrentTarget and VisionV2.Shared.CurrentTarget.Character and VisionV2.Shared.CurrentTarget.Character:FindFirstChild(VisionV2.Shared.Settings.Aimbot.TargetPart) then
+        local targetPart = VisionV2.Shared.CurrentTarget.Character[VisionV2.Shared.Settings.Aimbot.TargetPart]
+        local headPos = targetPart.Position
+        if VisionV2.Shared.Settings.Aimbot.PredictMovement and targetPart.Parent:FindFirstChild("HumanoidRootPart") then
+            local hrp = targetPart.Parent.HumanoidRootPart
+            local velocity = hrp.Velocity
+            local distance = (VisionV2.Shared.Camera.CFrame.Position - headPos).Magnitude
+            local timeToHit = distance / VisionV2.Shared.Settings.Aimbot.BulletSpeed
+            headPos = headPos + (velocity * timeToHit)
+        end
+        if headPos then
+            local screenPos, onScreen = VisionV2.Shared.Camera:WorldToViewportPoint(headPos)
+            if onScreen then
+                VisionV2.Shared.TargetDot.Position = Vector2.new(screenPos.X, screenPos.Y)
+                VisionV2.Shared.TargetDot.Visible = true
+            else
+                VisionV2.Shared.TargetDot.Visible = false
+            end
+        else
+            VisionV2.Shared.TargetDot.Visible = false
+        end
+    else
+        VisionV2.Shared.TargetDot.Visible = false
     end
 end
 
 -- Chams Implementation
 local ChamsHighlights = {}
 local function ApplyChams(player)
-    if player == Core.Players.LocalPlayer or not Core.Settings.Visuals.Chams then return end
+    if player == VisionV2.Shared.LocalPlayer or not VisionV2.Shared.Settings.Visuals.Chams then return end
     
     if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local distance = (Core.Camera.CFrame.Position - player.Character.HumanoidRootPart.Position).Magnitude
+        local distance = (VisionV2.Shared.Camera.CFrame.Position - player.Character.HumanoidRootPart.Position).Magnitude
         if distance > 2000 then return end
         
         local highlight = ChamsHighlights[player]
@@ -193,17 +361,17 @@ local function ApplyChams(player)
             ChamsHighlights[player] = highlight
         end
         
-        local isVisible = #Core.Camera:GetPartsObscuringTarget({player.Character[Core.Settings.Aimbot.TargetPart].Position}, {Core.Players.LocalPlayer.Character or {}, player.Character}) == 0
-        highlight.FillColor = isVisible and Core.Settings.Visuals.ChamsVisibleColor or Core.Settings.Visuals.ChamsOccludedColor
-        highlight.FillTransparency = Core.Settings.Visuals.ChamsTransparency
-        highlight.OutlineColor = Core.OUTLINE_COLOR
+        local isVisible = #VisionV2.Shared.Camera:GetPartsObscuringTarget({player.Character[VisionV2.Shared.Settings.Aimbot.TargetPart].Position}, {VisionV2.Shared.LocalPlayer.Character or {}, player.Character}) == 0
+        highlight.FillColor = isVisible and VisionV2.Shared.Settings.Visuals.ChamsVisibleColor or VisionV2.Shared.Settings.Visuals.ChamsOccludedColor
+        highlight.FillTransparency = VisionV2.Shared.Settings.Visuals.ChamsTransparency
+        highlight.OutlineColor = Color3.fromRGB(255, 182, 193)
         highlight.OutlineTransparency = 0
         highlight.Enabled = true
     end
 end
 
 local function ResetChams(player)
-    if player == Core.Players.LocalPlayer then return end
+    if player == VisionV2.Shared.LocalPlayer then return end
     
     local highlight = ChamsHighlights[player]
     if highlight then
@@ -214,7 +382,7 @@ end
 
 -- Hand Chams Implementation
 local function ApplyHandChams(character)
-    if not Core.Settings.Visuals.HandChams or not character then return end
+    if not VisionV2.Shared.Settings.Visuals.HandChams or not character then return end
     
     local arms = {}
     local weaponParts = {}
@@ -235,15 +403,15 @@ local function ApplyHandChams(character)
     end
     
     for _, part in pairs(arms) do
-        part.Color = Core.Settings.Visuals.HandChamsColor
-        part.Material = Enum.Material[Core.Settings.Visuals.HandChamsMaterial]
-        part.Transparency = Core.Settings.Visuals.HandChamsTransparency
+        part.Color = VisionV2.Shared.Settings.Visuals.HandChamsColor
+        part.Material = Enum.Material[VisionV2.Shared.Settings.Visuals.HandChamsMaterial]
+        part.Transparency = VisionV2.Shared.Settings.Visuals.HandChamsTransparency
     end
     
     for _, part in pairs(weaponParts) do
-        part.Color = Core.Settings.Visuals.HandChamsColor
-        part.Material = Enum.Material[Core.Settings.Visuals.HandChamsMaterial]
-        part.Transparency = Core.Settings.Visuals.HandChamsTransparency
+        part.Color = VisionV2.Shared.Settings.Visuals.HandChamsColor
+        part.Material = Enum.Material[VisionV2.Shared.Settings.Visuals.HandChamsMaterial]
+        part.Transparency = VisionV2.Shared.Settings.Visuals.HandChamsTransparency
     end
 end
 
@@ -282,56 +450,23 @@ local function ResetHandChams(character)
 end
 
 local function UpdateHandChams()
-    if not Core.Players.LocalPlayer.Character then return end
-    if Core.Settings.Visuals.HandChams then
-        ApplyHandChams(Core.Players.LocalPlayer.Character)
+    if not VisionV2.Shared.LocalPlayer.Character then return end
+    if VisionV2.Shared.Settings.Visuals.HandChams then
+        ApplyHandChams(VisionV2.Shared.LocalPlayer.Character)
     else
-        ResetHandChams(Core.Players.LocalPlayer.Character)
+        ResetHandChams(VisionV2.Shared.LocalPlayer.Character)
     end
-end
-
--- Bullet Tracers Implementation
-local function CreateBulletTracer(startPos, endPos)
-    if not Core.Settings.Weapon.BulletTracers or Core.ActiveTracers >= Core.MaxTracers then return end
-    Core.ActiveTracers = Core.ActiveTracers + 1
-
-    local beamPart = Instance.new("Part")
-    beamPart.Anchored = true
-    beamPart.CanCollide = false
-    beamPart.Size = Vector3.new(Core.Settings.Weapon.TracerThickness/10, Core.Settings.Weapon.TracerThickness/10, (endPos - startPos).Magnitude)
-    beamPart.Position = startPos + (endPos - startPos)/2
-    beamPart.CFrame = CFrame.lookAt(startPos, endPos)
-    beamPart.Material = Enum.Material[Core.Settings.Weapon.TracerMaterial]
-    beamPart.Color = Core.Settings.Weapon.TracerColor
-    beamPart.Transparency = 0
-    beamPart.Parent = workspace
-
-    local startTime = tick()
-    local fadeDuration = 0.5
-    local connection
-    connection = Core.RunService.RenderStepped:Connect(function()
-        local elapsed = tick() - startTime
-        if elapsed >= fadeDuration then
-            connection:Disconnect()
-            beamPart:Destroy()
-            Core.ActiveTracers = Core.ActiveTracers - 1
-            return
-        end
-        beamPart.Transparency = elapsed / fadeDuration
-    end)
-
-    Core.Debris:AddItem(beamPart, fadeDuration)
 end
 
 -- Sky Color Implementation
 local function UpdateSkyColor()
-    local sky = Core.Lighting:FindFirstChildOfClass("Sky")
+    local sky = VisionV2.Shared.Lighting:FindFirstChildOfClass("Sky")
     if not sky then
         sky = Instance.new("Sky")
-        sky.Parent = Core.Lighting
+        sky.Parent = VisionV2.Shared.Lighting
     end
 
-    local selectedColor = Core.SkyColors[Core.Settings.Visuals.SkyColor]
+    local selectedColor = VisionV2.Shared.SkyColors[VisionV2.Shared.Settings.Visuals.SkyColor]
     if selectedColor.SkyColor then
         sky.SkyboxBk = ""
         sky.SkyboxDn = ""
@@ -341,8 +476,8 @@ local function UpdateSkyColor()
         sky.SkyboxUp = ""
         sky.StarCount = 0
         sky.CelestialBodiesShown = false
-        Core.Lighting.Ambient = selectedColor.Ambient
-        local atmosphere = Core.Lighting:FindFirstChildOfClass("Atmosphere")
+        VisionV2.Shared.Lighting.Ambient = selectedColor.Ambient
+        local atmosphere = VisionV2.Shared.Lighting:FindFirstChildOfClass("Atmosphere")
         if atmosphere then
             atmosphere.Color = selectedColor.SkyColor
         end
@@ -355,57 +490,450 @@ local function UpdateSkyColor()
         sky.SkyboxUp = "rbxasset://textures/sky/sky512_up.tga"
         sky.StarCount = 3000
         sky.CelestialBodiesShown = true
-        Core.Lighting.Ambient = Color3.fromRGB(128, 128, 128)
-        local atmosphere = Core.Lighting:FindFirstChildOfClass("Atmosphere")
+        VisionV2.Shared.Lighting.Ambient = Color3.fromRGB(128, 128, 128)
+        local atmosphere = VisionV2.Shared.Lighting:FindFirstChildOfClass("Atmosphere")
         if atmosphere then
             atmosphere.Color = Color3.fromRGB(255, 255, 255)
         end
     end
 end
 
-function Visuals:EnableESP()
-    print("Enabling ESP...")
-    Core.Settings.Visuals.ESPEnabled = true
-    Core.ESPEnabled = true
-    ScanPlayers()
-    Core.RunService.Heartbeat:Connect(function()
-        ScanPlayers()
-        UpdateESP()
-    end)
-end
-
-function Visuals:DisableESP()
-    print("Disabling ESP...")
-    Core.Settings.Visuals.ESPEnabled = false
-    Core.ESPEnabled = false
-    for _, esp in pairs(ESP.Objects) do
-        if esp.BillboardGui then
-            esp.BillboardGui:Destroy()
+-- Player Scanning
+function Visuals.ScanPlayers()
+    for _, player in pairs(VisionV2.Shared.Players:GetPlayers()) do
+        if not ESP.Objects[player] and player ~= VisionV2.Shared.LocalPlayer then
+            CreateESP(player)
         end
-        if esp.Highlight then
-            esp.Highlight:Destroy()
+        if VisionV2.Shared.Settings.Visuals.Chams then
+            ApplyChams(player)
+        else
+            ResetChams(player)
         end
     end
-    ESP.Objects = {}
+    UpdateHandChams()
 end
 
-function Visuals:EnableChams()
-    Core.Settings.Visuals.Chams = true
-    for _, player in pairs(Core.Players:GetPlayers()) do
+function Visuals.RefreshChams()
+    for _, player in pairs(VisionV2.Shared.Players:GetPlayers()) do
         ApplyChams(player)
     end
 end
 
-function Visuals:EnableBulletTracers()
-    Core.Settings.Weapon.BulletTracers = true
+-- Visuals Tab
+local function SetupVisualsTab()
+    local ESPSection = VisionV2.Shared.VisualsTab:Section({
+        Name = "ESP Settings",
+        Side = "Left"
+    })
+
+    ESPSection:Toggle({
+        Name = "Enabled",
+        Flag = "ESP_Enabled",
+        Default = VisionV2.Shared.ESPEnabled,
+        Callback = function(Value)
+            VisionV2.Shared.ESPEnabled = Value
+        end
+    })
+
+    ESPSection:Toggle({
+        Name = "Box ESP",
+        Flag = "ESP_Box",
+        Default = VisionV2.Shared.Settings.ESP.Box,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.ESP.Box = Value
+        end
+    })
+
+    ESPSection:Toggle({
+        Name = "Name ESP",
+        Flag = "ESP_Name",
+        Default = VisionV2.Shared.Settings.ESP.Name,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.ESP.Name = Value
+        end
+    })
+
+    ESPSection:Toggle({
+        Name = "Distance ESP",
+        Flag = "ESP_Distance",
+        Default = VisionV2.Shared.Settings.ESP.Distance,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.ESP.Distance = Value
+        end
+    })
+
+    ESPSection:Toggle({
+        Name = "Health ESP",
+        Flag = "ESP_Health",
+        Default = VisionV2.Shared.Settings.ESP.Health,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.ESP.Health = Value
+        end
+    })
+
+    ESPSection:Toggle({
+        Name = "Weapon ESP",
+        Flag = "ESP_Weapon",
+        Default = VisionV2.Shared.Settings.ESP.Weapon,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.ESP.Weapon = Value
+        end
+    })
+
+    ESPSection:Toggle({
+        Name = "Skeleton ESP",
+        Flag = "ESP_Skeleton",
+        Default = VisionV2.Shared.Settings.ESP.Skeleton,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.ESP.Skeleton = Value
+        end
+    })
+
+    ESPSection:Toggle({
+        Name = "Team Check",
+        Flag = "ESP_TeamCheck",
+        Default = VisionV2.Shared.Settings.ESP.TeamCheck,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.ESP.TeamCheck = Value
+        end
+    })
+
+    ESPSection:Colorpicker({
+        Name = "Enemy Color",
+        Flag = "ESP_EnemyColor",
+        Default = VisionV2.Shared.Settings.ESP.EnemyColor,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.ESP.EnemyColor = Value
+        end
+    })
+
+    ESPSection:Colorpicker({
+        Name = "Team Color",
+        Flag = "ESP_TeamColor",
+        Default = VisionV2.Shared.Settings.ESP.TeamColor,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.ESP.TeamColor = Value
+        end
+    })
+
+    local VisualsChamsSection = VisionV2.Shared.VisualsTab:Section({
+        Name = "Chams Settings",
+        Side = "Left"
+    })
+
+    VisualsChamsSection:Toggle({
+        Name = "Player Chams",
+        Flag = "Visuals_Chams",
+        Default = VisionV2.Shared.Settings.Visuals.Chams,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.Chams = Value
+            for _, player in pairs(VisionV2.Shared.Players:GetPlayers()) do
+                if Value then
+                    ApplyChams(player)
+                else
+                    ResetChams(player)
+                end
+            end
+        end
+    })
+
+    VisualsChamsSection:Toggle({
+        Name = "Hand Chams",
+        Flag = "Visuals_HandChams",
+        Default = VisionV2.Shared.Settings.Visuals.HandChams,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.HandChams = Value
+            UpdateHandChams()
+        end
+    })
+
+    VisualsChamsSection:Slider({
+        Name = "Player Transparency",
+        Flag = "Visuals_ChamsTransparency",
+        Default = VisionV2.Shared.Settings.Visuals.ChamsTransparency * 10,
+        Min = 0,
+        Max = 10,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.ChamsTransparency = Value / 10
+            if VisionV2.Shared.Settings.Visuals.Chams then
+                for _, player in pairs(VisionV2.Shared.Players:GetPlayers()) do
+                    ApplyChams(player)
+                end
+            end
+        end
+    })
+
+    VisualsChamsSection:Slider({
+        Name = "Hand Transparency",
+        Flag = "Visuals_HandChamsTransparency",
+        Default = VisionV2.Shared.Settings.Visuals.HandChamsTransparency * 10,
+        Min = 0,
+        Max = 10,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.HandChamsTransparency = Value / 10
+            UpdateHandChams()
+        end
+    })
+
+    VisualsChamsSection:Colorpicker({
+        Name = "Visible Color",
+        Flag = "Visuals_ChamsVisibleColor",
+        Default = VisionV2.Shared.Settings.Visuals.ChamsVisibleColor,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.ChamsVisibleColor = Value
+            if VisionV2.Shared.Settings.Visuals.Chams then
+                for _, player in pairs(VisionV2.Shared.Players:GetPlayers()) do
+                    ApplyChams(player)
+                end
+            end
+        end
+    })
+
+    VisualsChamsSection:Colorpicker({
+        Name = "Occluded Color",
+        Flag = "Visuals_ChamsOccludedColor",
+        Default = VisionV2.Shared.Settings.Visuals.ChamsOccludedColor,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.ChamsOccludedColor = Value
+            if VisionV2.Shared.Settings.Visuals.Chams then
+                for _, player in pairs(VisionV2.Shared.Players:GetPlayers()) do
+                    ApplyChams(player)
+                end
+            end
+        end
+    })
+
+    VisualsChamsSection:Colorpicker({
+        Name = "Hand Chams Color",
+        Flag = "Visuals_HandChamsColor",
+        Default = VisionV2.Shared.Settings.Visuals.HandChamsColor,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.HandChamsColor = Value
+            UpdateHandChams()
+        end
+    })
+
+    VisualsChamsSection:Dropdown({
+        Name = "Chams Material",
+        Flag = "Visuals_ChamsMaterial",
+        Content = VisionV2.Shared.Materials,
+        Default = VisionV2.Shared.Settings.Visuals.ChamsMaterial,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.ChamsMaterial = Value
+            if VisionV2.Shared.Settings.Visuals.Chams then
+                for _, player in pairs(VisionV2.Shared.Players:GetPlayers()) do
+                    ApplyChams(player)
+                end
+            end
+        end
+    })
+
+    VisualsChamsSection:Dropdown({
+        Name = "Hand Chams Material",
+        Flag = "Visuals_HandChamsMaterial",
+        Content = VisionV2.Shared.Materials,
+        Default = VisionV2.Shared.Settings.Visuals.HandChamsMaterial,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.HandChamsMaterial = Value
+            UpdateHandChams()
+        end
+    })
+
+    local VisualsBulletTracersSection = VisionV2.Shared.VisualsTab:Section({
+        Name = "Bullet Tracers",
+        Side = "Right"
+    })
+
+    VisualsBulletTracersSection:Toggle({
+        Name = "Enabled",
+        Flag = "Weapon_BulletTracers",
+        Default = VisionV2.Shared.Settings.Weapon.BulletTracers,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Weapon.BulletTracers = Value
+            if Value then
+                SetupBulletTracers()
+            end
+        end
+    })
+
+    VisualsBulletTracersSection:Colorpicker({
+        Name = "Tracer Color",
+        Flag = "Weapon_TracerColor",
+        Default = VisionV2.Shared.Settings.Weapon.TracerColor,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Weapon.TracerColor = Value
+        end
+    })
+
+    VisualsBulletTracersSection:Slider({
+        Name = "Tracer Thickness",
+        Flag = "Weapon_TracerThickness",
+        Default = VisionV2.Shared.Settings.Weapon.TracerThickness,
+        Min = 1,
+        Max = 5,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Weapon.TracerThickness = Value
+        end
+    })
+
+    VisualsBulletTracersSection:Dropdown({
+        Name = "Tracer Material",
+        Flag = "Weapon_TracerMaterial",
+        Content = VisionV2.Shared.Materials,
+        Default = VisionV2.Shared.Settings.Weapon.TracerMaterial,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Weapon.TracerMaterial = Value
+        end
+    })
+
+    local VisualsWorldSection = VisionV2.Shared.VisualsTab:Section({
+        Name = "World Settings",
+        Side = "Right"
+    })
+
+    VisualsWorldSection:Toggle({
+        Name = "Fullbright",
+        Flag = "Visuals_Fullbright",
+        Default = VisionV2.Shared.Settings.Visuals.Fullbright,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.Fullbright = Value
+            if Value then
+                game.Lighting.Brightness = 1
+                game.Lighting.GlobalShadows = false
+            else
+                game.Lighting.Brightness = 0
+                game.Lighting.GlobalShadows = true
+            end
+        end
+    })
+
+    VisualsWorldSection:Toggle({
+        Name = "No Fog",
+        Flag = "Visuals_NoFog",
+        Default = VisionV2.Shared.Settings.Visuals.NoFog,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.NoFog = Value
+            if Value then
+                game.Lighting.FogEnd = 100000
+            else
+                game.Lighting.FogEnd = 1000
+            end
+        end
+    })
+
+    VisualsWorldSection:Dropdown({
+        Name = "Sky Color",
+        Flag = "Visuals_SkyColor",
+        Content = {"Default", "Pink", "Sunset", "Night", "Purple"},
+        Default = VisionV2.Shared.Settings.Visuals.SkyColor,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.SkyColor = Value
+            UpdateSkyColor()
+        end
+    })
+
+    VisualsWorldSection:Slider({
+        Name = "Time of Day",
+        Flag = "Visuals_TimeOfDay",
+        Default = VisionV2.Shared.Settings.Visuals.TimeOfDay,
+        Min = 0,
+        Max = 24,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Visuals.TimeOfDay = Value
+            game.Lighting.ClockTime = Value
+        end
+    })
 end
 
-function Visuals:UpdateHandChams()
-    UpdateHandChams()
+-- Misc Tab
+local function SetupMiscTab()
+    local MiscSection = VisionV2.Shared.MiscTab:Section({
+        Name = "Miscellaneous",
+        Side = "Left"
+    })
+
+    MiscSection:Toggle({
+        Name = "No Recoil",
+        Flag = "Weapon_NoRecoil",
+        Default = VisionV2.Shared.Settings.Weapon.NoRecoil,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Weapon.NoRecoil = Value
+        end
+    })
+
+    MiscSection:Toggle({
+        Name = "No Spread",
+        Flag = "Weapon_NoSpread",
+        Default = VisionV2.Shared.Settings.Weapon.NoSpread,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Weapon.NoSpread = Value
+        end
+    })
+
+    MiscSection:Toggle({
+        Name = "Rapid Fire",
+        Flag = "Weapon_RapidFire",
+        Default = VisionV2.Shared.Settings.Weapon.RapidFire,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Weapon.RapidFire = Value
+        end
+    })
+
+    MiscSection:Slider({
+        Name = "Fire Rate",
+        Flag = "Weapon_FireRate",
+        Default = VisionV2.Shared.Settings.Weapon.FireRate,
+        Min = 50,
+        Max = 1000,
+        Callback = function(Value)
+            VisionV2.Shared.Settings.Weapon.FireRate = Value
+        end
+    })
 end
 
-function Visuals:UpdateSkyColor()
+-- Settings Tab
+local function SetupSettingsTab()
+    local SettingsSection = VisionV2.Shared.SettingsTab:Section({
+        Name = "Settings",
+        Side = "Left"
+    })
+
+    local ProfilesSection = VisionV2.Shared.SettingsTab:Section({
+        Name = "Profiles",
+        Side = "Left"
+    })
+
+    local InformationSection = VisionV2.Shared.SettingsTab:Section({
+        Name = "Information",
+        Side = "Right"
+    })
+
+    SettingsSection:Keybind({
+        Name = "Toggle UI",
+        Flag = "Toggle_UI",
+        Default = Enum.KeyCode.RightShift,
+        Callback = function()
+            VisionV2.Toggle(not VisionV2.GetToggleState())
+        end
+    })
+end
+
+function Visuals.Init(vision)
+    VisionV2 = vision
+    VisionV2.Shared.TargetDot = CreateTargetDot()
+    SetupVisualsTab()
+    SetupMiscTab()
+    SetupSettingsTab()
+    if VisionV2.Shared.Settings.Weapon.BulletTracers then
+        SetupBulletTracers()
+    end
     UpdateSkyColor()
+end
+
+function Visuals.Update()
+    UpdateESP()
+    UpdateTargetDot()
+    UpdateHandChams()
 end
 
 return Visuals
