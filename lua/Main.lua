@@ -1,10 +1,50 @@
 -- Main.lua
-local HttpService = game:GetService("HttpService")
+-- VisionV2 by unboxings © 2025
+
+-- Loaded Check (adapted from AirHub V2)
+if VisionV2Loaded or VisionV2Loading then
+    return
+end
+
+getgenv().VisionV2Loading = true
+
+-- Cache (inspired by AirHub V2)
+local game = game
+local loadstring, pcall = loadstring, pcall
+local wait = task.wait
+
+-- Detect Third-Party Environment (adapted from AirHub V2)
+local isThirdParty = pcall(function()
+    return game:GetService("ThirdPartyUserService") ~= nil
+end)
+if isThirdParty then
+    warn("Detected third-party environment. Some features may not work as expected. Consider testing in Roblox Studio.")
+end
+
+-- Wait for Game to Load (extended from AirHub V2 approach)
+print("Waiting for game to load...")
+local gameLoadTimeout = 30
+local startTime = tick()
+if game and game.IsLoaded then
+    if not game:IsLoaded() then
+        game.Loaded:Wait()
+    end
+else
+    print("Game object not found, waiting up to " .. gameLoadTimeout .. " seconds...")
+    while not game and (tick() - startTime) < gameLoadTimeout do
+        wait(1)
+    end
+end
+if not game then
+    warn("Game object not available after timeout. Script will proceed with limited functionality.")
+else
+    print("Game loaded successfully or timeout reached!")
+end
 
 -- BASE_URL for your GitHub repository
 local BASE_URL = "https://raw.githubusercontent.com/unboxings/VisionV2/main/lua/"
 
--- Function to load a module from a URL
+-- Function to load a module from a URL (same as before, inspired by AirHub V2)
 local function loadModule(moduleName)
     local url = BASE_URL .. moduleName .. ".lua"
     print("Attempting to load module: " .. moduleName .. " from " .. url)
@@ -30,45 +70,17 @@ end
 print("Initializing Core table...")
 _G.Core = {}
 
--- Detect if running in a third-party environment
-local isThirdParty = pcall(function()
-    return game:GetService("ThirdPartyUserService") ~= nil
-end)
-if isThirdParty then
-    warn("Detected third-party environment. Some features may not work as expected.")
-end
-
--- Wait for the game to fully load with extended timeout
-print("Waiting for game to load...")
-local gameLoadTimeout = 30 -- Extended timeout for third-party environments
-local startTime = tick()
-if game and game.IsLoaded then
-    if not game:IsLoaded() then
-        game.Loaded:Wait()
-    end
-else
-    print("Game object not found, waiting up to " .. gameLoadTimeout .. " seconds...")
-    while not game and (tick() - startTime) < gameLoadTimeout do
-        task.wait(1)
-    end
-end
-if not game then
-    warn("Game object not available after timeout. Script may not function correctly.")
-else
-    print("Game loaded successfully or timeout reached!")
-end
-
 -- Wait for game and workspace objects to be available
 print("Waiting for game and workspace objects...")
-local maxWaitTime = 30 -- Extended timeout
+local maxWaitTime = 30
 local waitTime = 0
 while (not game or not workspace) and waitTime < maxWaitTime do
     print("Game or Workspace not yet available, waiting...")
-    task.wait(0.5)
+    wait(0.5)
     waitTime = waitTime + 0.5
 end
 if not game or not workspace then
-    warn("Timeout waiting for game and workspace objects. Script may not function correctly.")
+    warn("Timeout waiting for game and workspace objects. Script will proceed with limited functionality.")
 end
 
 -- Services with enhanced error handling and fallback
@@ -78,39 +90,40 @@ local success, err = pcall(function()
     end
     local playersService = game:GetService("Players")
     if not playersService then
-        error("Players service not available after retries")
+        warn("Players service not available. Features requiring Players service will be disabled.")
+        Core.Players = nil
+    else
+        Core.Players = playersService
     end
-    Core.Players = playersService
     Core.UserInputService = game:GetService("UserInputService")
     Core.TweenService = game:GetService("TweenService")
     Core.RunService = game:GetService("RunService")
     Core.Camera = workspace and workspace.CurrentCamera or nil
     if not Core.Camera then
-        error("Camera not found in workspace")
+        warn("Camera not found in workspace. Features requiring Camera will be disabled.")
     end
     Core.Debris = game:GetService("Debris")
     Core.Lighting = game:GetService("Lighting")
 end)
 
 if not success then
-    warn("Failed to initialize services: " .. err)
-    return
+    warn("Failed to initialize some services: " .. err .. ". Proceeding with limited functionality.")
 end
 
-print("Services initialized successfully!")
+print("Services initialized with possible limitations!")
 
--- Variables
-Core.LocalPlayer = Core.Players.LocalPlayer
-if not Core.LocalPlayer then
+-- Variables (with fallbacks for missing services)
+Core.LocalPlayer = Core.Players and Core.Players.LocalPlayer or nil
+if Core.Players and not Core.LocalPlayer then
     warn("LocalPlayer not found, waiting...")
-    local localPlayerTimeout = 20 -- Extended timeout
+    local localPlayerTimeout = 20
     local startTime = tick()
     while not Core.LocalPlayer and (tick() - startTime) < localPlayerTimeout do
-        task.wait(0.5)
+        wait(0.5)
         Core.LocalPlayer = Core.Players.LocalPlayer
     end
     if not Core.LocalPlayer then
-        warn("Timeout waiting for LocalPlayer. Script may not function correctly.")
+        warn("Timeout waiting for LocalPlayer. Features requiring LocalPlayer will be disabled.")
     end
 end
 Core.Mouse = Core.LocalPlayer and Core.LocalPlayer:GetMouse() or nil
@@ -125,7 +138,7 @@ Core.ActiveTracers = 0
 Core.MaxTracers = 10
 Core.ThirdPersonEnabled = false
 Core.ZoomEnabled = false
-Core.ZoomKey = Enum.UserInputType.MouseButton3
+Core.ZoomKey = Core.UserInputService and Enum.UserInputType.MouseButton3 or nil
 Core.DefaultFOV = 70
 Core.ZoomFOV = 20
 Core.OriginalSensitivity = Core.UserInputService and Core.UserInputService.MouseDeltaSensitivity or 0
@@ -220,7 +233,7 @@ Core.SkyColors = {
 -- Materials for Chams and Hand Chams
 Core.Materials = {"Neon", "ForceField", "Glass", "SmoothPlastic"}
 
--- Utility Functions
+-- Utility Functions (unchanged)
 function Core.CreateInstance(instanceType, properties)
     local instance = Instance.new(instanceType)
     for property, value in pairs(properties) do
@@ -230,6 +243,10 @@ function Core.CreateInstance(instanceType, properties)
 end
 
 function Core.MakeDraggable(frame)
+    if not Core.UserInputService or not Core.TweenService then
+        warn("UserInputService or TweenService not available. Draggable functionality disabled.")
+        return
+    end
     local dragToggle = nil
     local dragSpeed = 0.1
     local dragStart = nil
@@ -266,7 +283,7 @@ function Core.ConvertVector(Vector)
     return Vector2.new(Vector.X, Vector.Y)
 end
 
--- Load all modules
+-- Load all modules (same as AirHub V2 approach)
 print("Loading Aimbot module...")
 local Aimbot = loadModule("Aimbot")
 print("Loading Visuals module...")
@@ -274,19 +291,35 @@ local Visuals = loadModule("Visuals")
 print("Loading GUI module...")
 local GUI = loadModule("GUI")
 
--- Check if all modules loaded successfully
+-- Check if all modules loaded successfully and initialize (inspired by AirHub V2)
 if Aimbot and Visuals and GUI then
     print("All modules loaded successfully!")
-    Aimbot:Enable()
-    Visuals:EnableESP()
-    GUI:CreateWindow()
+    if Aimbot then
+        Aimbot:Enable()
+    else
+        warn("Aimbot module not loaded. Aimbot features disabled.")
+    end
+    if Visuals then
+        Visuals:EnableESP()
+    else
+        warn("Visuals module not loaded. ESP features disabled.")
+    end
+    if GUI then
+        GUI:CreateWindow()
+    else
+        warn("GUI module not loaded. Interface will not be available.")
+    end
 else
-    warn("One or more modules failed to load.")
+    warn("One or more modules failed to load. Script functionality limited.")
 end
 
--- Initialize Zoom
+-- Initialize Zoom (with fallback)
 if Core.Camera then
     Core.Camera.FieldOfView = Core.DefaultFOV
 else
     warn("Camera not available, cannot set FieldOfView")
 end
+
+-- Mark script as loaded (adapted from AirHub V2)
+getgenv().VisionV2Loaded = true
+getgenv().VisionV2Loading = nil
